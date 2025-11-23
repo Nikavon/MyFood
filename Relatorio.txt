@@ -1,0 +1,123 @@
+Relatório do Projeto MyFood
+
+1. Visão Geral Arquitetural
+
+O sistema MyFood é uma aplicação Java modular de pequena escala, com lógica de domínio implementada em memória. A aplicação é projetada para ser utilizada e validada por scripts de aceitação EasyAccept (jar em `lib/`), que chamam métodos da API pública fornecida por `Facade.java`. A implementação das regras de negócio e do estado do sistema está concentrada em `MyFoodFacade.java`. Os modelos de domínio estão em `src/myfood/models/`.
+
+Camadas principais:
+- Apresentação / Aceitação: `Main.java` + EasyAccept (scripts em `test/*.txt`).
+- API pública: `Facade.java` — fachada que delega para a implementação.
+- Serviço / Lógica de negócio: `MyFoodFacade.java` — validações e manipulação de entidades.
+- Modelo de domínio: classes em `src/myfood/models/` (ex.: `Usuario`, `Empresa`, `Pedido`, `Produto`).
+- Persistência em memória: coleções (`Map`, `Set`, `List`) mantidas dentro de `MyFoodFacade`.
+
+Fluxo de execução (alto nível):
+EasyAccept (testes) -> `Facade` (métodos públicos) -> `MyFoodFacade` (implementação) -> operações sobre coleções em memória -> retorno/exceções -> EasyAccept valida resultados.
+
+Regras importantes:
+- Mensagens de exceção devem ser literais e exatas (os scripts dependem dessas strings).
+- IDs são gerados sequencialmente (contadores internos: `nextUserId`, `nextEmpresaId`, etc.).
+- Estados de pedido: `aberto` → `preparando` → `pronto` → `entregando` → `entregue`.
+- Prioridades de entrega: pedidos de farmácia têm prioridade na seleção de pedidos prontos.
+
+2. Principais Componentes e Interações
+
+- `Main.java`: executor dos scripts EasyAccept.
+- `Facade.java`: fachada pública; delega para `MyFoodFacade` e formata respostas (p.ex., converte listas para strings no formato esperado).
+- `MyFoodFacade.java`: núcleo da aplicação; contém coleções em memória para entidades e implementa todos os casos de uso (criar usuário/empresa/produto/pedido, fluxo de pedido, cadastro de entregadores, criação e finalização de entregas).
+- Modelos em `src/myfood/models/`: representam conceitos do domínio, embora parte do sistema utilize `Map<String,String>` para armazenar atributos dinamicamente.
+
+Interações frequentes:
+- `criarUsuario(...)` atualiza `usuarios`.
+- `criarEmpresa(...)` atualiza `empresas` (com overloads para diferentes tipos: restaurante, mercado, farmácia).
+- `criarProduto`, `adicionarProduto`, `fecharPedido`, `liberarPedido` manipulam `produtos` e `pedidos`.
+- `cadastrarEntregador`, `obterPedido`, `criarEntrega`, `entregar` integram `usuarios`, `empresas`, `pedidos`, `entregas` e índices auxiliares (`pedidoParaEntrega`).
+
+3. Padrões de Projeto Identificados
+
+Padrão: Facade
+- Descrição Geral:
+  O Facade oferece uma interface simplificada para um subsistema complexo, consolidando chamadas e escondendo detalhes de implementação.
+- Problema Resolvido:
+  Reduz o acoplamento entre os testes (clientes) e a implementação interna. Fornece um único ponto de entrada estável.
+- Identificação da Oportunidade:
+  Os scripts EasyAccept precisam de uma API simples e consistente. Em vez de expor múltiplas classes e detalhes de `MyFoodFacade`, a aplicação requer uma fachada.
+- Aplicação no Projeto:
+  - Arquivo: `src/myfood/Facade.java`.
+  - Implementação: `Facade` mantém `private static final MyFoodFacade impl = new MyFoodFacade();` e delega todos os métodos públicos para `impl`.
+  - Exemplo: `public int criarUsuario(String nome, String email, String senha, String endereco) { return impl.criarUsuario(nome, email, senha, endereco); }`.
+  - Observação: `Facade` também formata resultados (ex.: transforma `List` retornado em uma string entre chaves) para acomodar o formato exigido pelos scripts.
+
+Padrão: Singleton (variante simples)
+- Descrição Geral:
+  Assegura uma única instância de uma classe e fornece ponto de acesso global.
+- Problema Resolvido:
+  Evita múltiplas instâncias que causariam inconsistência no estado global (IDs, coleções em memória).
+- Identificação da Oportunidade:
+  Estado do sistema deve ser único durante a execução dos testes; `Facade` precisa delegar sempre para a mesma instância de implementação.
+- Aplicação no Projeto:
+  - Implementação leve: `private static final MyFoodFacade impl = new MyFoodFacade();` em `Facade.java`.
+  - Observação: não há preocupação com concorrência (adequado para execução sequencial de testes). Para ambientes concorrentes, recomenda-se adaptar para thread-safe ou usar injeção de dependência.
+
+Padrão: Domain Model
+- Descrição Geral:
+  Representa conceitos do domínio com objetos que contêm dados e comportamentos relacionados.
+- Problema Resolvido:
+  Proporciona uma modelagem próxima ao negócio (usuário, empresa, produto, pedido, entrega), facilitando raciocínio e evolução do código.
+- Identificação da Oportunidade:
+  O domínio do problema é rico em entidades e regras (validações, estados de pedido, relacionamentos de entregadores), portanto faz sentido ter classes de domínio.
+- Aplicação no Projeto:
+  - Local: `src/myfood/models/` (ex.: `Usuario.java`, `Empresa.java`, `Pedido.java`, `Produto.java`).
+  - Observação: apesar de existir a pasta de models, `MyFoodFacade` usa em vários pontos `Map<String,String>` para armazenar atributos, uma escolha prática para desenvolvimento rápido e compatibilidade direta com os testes.
+
+Padrão: Repository (in-memory / Repository-like)
+- Descrição Geral:
+  Fornece uma abstração para acesso a coleções de objetos de domínio, encapsulando operações de armazenamento e consulta.
+- Problema Resolvido:
+  Centraliza a lógica de acesso a dados, permitindo trocar a estratégia de persistência sem alterar a lógica da aplicação.
+- Identificação da Oportunidade:
+  `MyFoodFacade` precisa gerenciar conjuntos de entidades (usuários, empresas, produtos, pedidos, entregas) e índices auxiliares; esses mapas podem ser vistos como repositórios em memória.
+- Aplicação no Projeto:
+  - Implementação: `Map<Integer, Map<String, String>> usuarios`, `empresas`, `produtos`, `pedidos`, `entregas`, e índices como `pedidoParaEntrega`.
+  - Exemplos de uso: `criarPedido(...)` adiciona uma entrada em `pedidos`; `pedidoParaEntrega.put(pedido, id)` cria um índice pedido→entrega.
+  - Observação: Para produção, recomenda-se extrair esses repositórios para classes separadas e implementar persistência durável (banco de dados).
+
+Padrão/Prática: Sobrecarga de Métodos (Overloading) / Polimorfismo por Assinatura
+- Descrição Geral:
+  Uso de múltiplas assinaturas para o mesmo método, permitindo variações de criação/configuração (ex.: diferentes tipos de usuário/empresa).
+- Problema Resolvido:
+  Mantém uma API concisa e com nome único para operações que têm variantes com parâmetros diferentes.
+- Identificação da Oportunidade:
+  Requisitos pedem criação de usuários normais, usuários com CPF, entregadores; empresas com atributos distintos (restaurante, mercado com horários e tipoMercado, farmácia com número de funcionários). A sobrecarga simplifica a API pública.
+- Aplicação no Projeto:
+  - Exemplos:
+    - `criarUsuario(String nome, String email, String senha, String endereco)`
+    - `criarUsuario(String nome, String email, String senha, String endereco, String cpf)`
+    - `criarUsuario(String nome, String email, String senha, String endereco, String veiculo, String placa)`
+  - Para empresas:
+    - `criarEmpresa(... tipoCozinha ...)` (restaurante)
+    - `criarEmpresa(... abre, fecha, tipoMercado ...)` (mercado)
+    - `criarEmpresa(... aberto24Horas, numeroFuncionarios ...)` (farmácia)
+  - Observação: alternativa orientada a objetos poderia usar fábricas ou hierarquias de classes e um objeto argumento (DTO) para clareza.
+
+4. Exemplos de Código (referências)
+- Chamada de fachada (exemplo simplificado em `Facade.java`):
+  public int criarUsuario(String nome, String email, String senha, String endereco) {
+    return impl.criarUsuario(nome, email, senha, endereco);
+  }
+
+- Trecho que mantém repositório em memória (exemplo simplificado):
+  private Map<Integer, Map<String, String>> usuarios = new HashMap<>();
+
+5. Recomendações de Evolução
+- Extrair repositórios: criar classes como `UsuarioRepository`, `EmpresaRepository` para encapsular `Map`s.
+- Migrar armazenamento para objetos fortemente tipados (reduzir uso extensivo de `Map<String,String>`).
+- Usar exceções tipadas em vez de `RuntimeException` com mensagens literais; deixar mensagens literais apenas como valores de mensagem, não como mecanismo de controle de fluxo.
+- Introduzir testes unitários (JUnit) além dos scripts EasyAccept para permitir desenvolvimento mais rápido e regressões controladas.
+- Adotar injeção de dependência para facilitar testes e alternância entre implementações (memória vs persistência).
+
+6. Próximos Passos sugeridos
+- Revisão incremental: extrair um repositório (por exemplo, `UsuarioRepository`) e adaptar `MyFoodFacade` para usá-lo.
+- Criar um documento `README.md` com instruções de compilação e execução dos scripts EasyAccept (com os comandos que foram usados).
+- Opcional: transformar este relatório em `REPORT.md` com formatação Markdown caso queira renderização mais legível.
+

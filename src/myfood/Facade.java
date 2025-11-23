@@ -11,6 +11,10 @@ public class Facade {
     public int criarUsuario(String nome, String email, String senha, String endereco, String cpf) {
         return impl.criarUsuario(nome, email, senha, endereco, cpf);
     }
+
+    public int criarUsuario(String nome, String email, String senha, String endereco, String veiculo, String placa) {
+        return impl.criarUsuario(nome, email, senha, endereco, veiculo, placa);
+    }
     public int login(String email, String senha) { return impl.login(email, senha); }
     public String getAtributoUsuario(int id, String atributo) { return impl.getAtributoUsuario(id, atributo); }
 
@@ -18,9 +22,29 @@ public class Facade {
         return impl.criarEmpresa(tipoEmpresa, dono, nome, endereco, tipoCozinha);
     }
 
+    public int criarEmpresa(String tipoEmpresa, int dono, String nome, String endereco, String abre, String fecha, String tipoMercado) {
+        return impl.criarEmpresa(tipoEmpresa, dono, nome, endereco, abre, fecha, tipoMercado);
+    }
+
+    public int criarEmpresa(String tipoEmpresa, int dono, String nome, String endereco, boolean aberto24Horas, int numeroFuncionarios) {
+        return impl.criarEmpresa(tipoEmpresa, dono, nome, endereco, aberto24Horas, numeroFuncionarios);
+    }
+
     public String getEmpresasDoUsuario(int idDono) { return "{" + impl.getEmpresasDoUsuario(idDono).toString() + "}"; }
     public String getAtributoEmpresa(int empresa, String atributo) { return impl.getAtributoEmpresa(empresa, atributo); }
     public int getIdEmpresa(int idDono, String nome, int indice) { return impl.getIdEmpresa(idDono, nome, indice); }
+
+    public void alterarFuncionamento(int mercado, String abre, String fecha) { impl.alterarFuncionamento(mercado, abre, fecha); }
+
+    public void cadastrarEntregador(int empresa, int entregador) { impl.cadastrarEntregador(empresa, entregador); }
+    public String getEntregadores(int empresa) { return "{" + impl.getEntregadores(empresa).toString() + "}"; }
+    public String getEmpresas(int entregador) { return "{" + impl.getEmpresas(entregador).toString() + "}"; }
+    public void liberarPedido(int numero) { impl.liberarPedido(numero); }
+    public int obterPedido(int entregador) { return impl.obterPedido(entregador); }
+    public int criarEntrega(int pedido, int entregador, String destino) { return impl.criarEntrega(pedido, entregador, destino); }
+    public String getEntrega(int id, String atributo) { return impl.getEntrega(id, atributo); }
+    public int getIdEntrega(int pedido) { return impl.getIdEntrega(pedido); }
+    public void entregar(int entrega) { impl.entregar(entrega); }
 
     public int criarProduto(int empresa, String nome, float valor, String categoria) { return impl.criarProduto(empresa, nome, valor, categoria); }
     public void editarProduto(int produto, String nome, float valor, String categoria) { impl.editarProduto(produto, nome, valor, categoria); }
